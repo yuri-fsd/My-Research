@@ -1,0 +1,42 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# === ANOVA結果 ===
+data = {
+    "Source": ["Gender", "VC", "Factor", "Gender×VC", "Gender×Factor", "VC×Factor", "Gender×VC×Factor"],
+    "p": [0.9580, 0.4945, 0.0255, 0.5919, 0.6390, 0.4438, 0.5268]
+}
+df = pd.DataFrame(data)
+
+# === 色設定 ===
+df["color"] = df["p"].apply(lambda x: "#e74c3c" if x < 0.05 else "#95a5a6")
+df["alpha"] = df["p"].apply(lambda x: 1.0 if x < 0.05 else 0.5)
+
+# === グラフ作成 ===
+plt.figure(figsize=(8,5))
+
+# 1本ずつ描画（alphaを個別指定）
+for i, row in df.iterrows():
+    plt.bar(row["Source"], row["p"], color=row["color"], alpha=row["alpha"], width=0.6)
+
+# 軸ラベルなど
+plt.title("p-values of Factors in 3-Way ANOVA", fontsize=14)
+plt.ylabel("p-value", fontsize=12)
+plt.xlabel("Factors", fontsize=12)
+plt.xticks(rotation=20)
+plt.ylim(0, 1)
+
+# 有意水準ライン
+plt.axhline(y=0.05, color='red', linestyle='--', linewidth=1)
+plt.text(6.3, 0.05, 'p=0.05', color='red', va='bottom')
+
+# 棒上にp値表示
+for i, pval in enumerate(df["p"]):
+    label = f"{pval:.3f}" + ("★" if pval < 0.05 else "")
+    plt.text(i, pval + 0.03, label, ha='center', fontsize=10, color="black")
+
+# デザイン調整
+plt.grid(axis='y', linestyle=':', alpha=0.6)
+plt.tight_layout()
+plt.savefig("ANOVA_p_values_transparent.png", dpi=400)
+plt.show()

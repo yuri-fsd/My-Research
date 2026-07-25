@@ -1,0 +1,76 @@
+import pandas as pd
+from scipy.stats import ttest_1samp
+import numpy as np
+
+# ============================
+# 1. ワイド形式データ読み込み
+# ============================
+df = pd.read_csv("2025距離測定結果.csv")
+
+# タイムスタンプ削除
+df = df.drop(columns=[df.columns[0]])
+
+# 数値変換
+for c in df.columns[2:]:
+    df[c] = pd.to_numeric(df[c], errors="coerce")
+
+# ============================
+# 2. 距離差分（あり−なし）を作成する準備
+# ============================
+import re
+rows = []
+
+for _, row in df.iterrows():
+    name = row["氏名"]
+    p_gender = row["被験者の性別"]
+
+    # なし／あり × 男性実験者・女性実験者
+    for exp_gender in ["男性", "女性"]:
+
+        # なしの距離（試行最大＝最終値）
+        none_cols = [c for c in df.columns if c.startswith(f"なしー{exp_gender}")]
+        none_vals = [row[c] for c in none_cols if not pd.isna(row[c])]
+        none_last = none_vals[-1] if len(none_vals) > 0 else np.nan
+
+        # ありの距離（試行最大＝最終値）
+        vc_cols = [c for c in df.columns if c.startswith(f"ありー{exp_gender}")]
+        vc_vals = [row[c] for c in vc_cols if not pd.isna(row[c])]
+        vc_last = vc_vals[-1] if len(vc_vals) > 0 else np.nan
+
+        # 距離差分
+        if not (pd.isna(none_last) or pd.isna(vc_last)):
+            dist_diff = vc_last - none_last
+        else:
+            dist_diff = np.nan
+
+        # =========================
+        # 3. 接近回数差分を計算
+        # =========================
+        none_count = len([c for c in none_cols if not pd.isna(row[c])])
+        vc_count = len([c for c in vc_cols if not pd.isna(row[c])])
+        count_diff = vc_count - none_count
+
+        rows.append({
+            "氏名": name,
+            "被験者性別": p_gender,
+            "実験者性別": exp_gender,
+            "なし距離": none_last,
+            "あり距離": vc_last,
+            "距離差分(あり-なし)": dist_diff,
+            "なし回数": none_count,
+            "あり回数": vc_count,
+            "回数差分(あり-なし)": count_diff
+        })
+
+# ============================
+# 4. 差分テーブルにまとめる
+# ============================
+df_diff = pd.DataFrame(rows)
+
+# ============================
+# 5. CSVとして保存
+# ============================
+df_diff.to_csv("距離と回数_差分まとめ.csv", index=False)
+
+print("差分CSVを作成しました： 距離と回数_差分まとめ.csv")
+df_diff.head()

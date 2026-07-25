@@ -1,0 +1,54 @@
+import pandas as pd
+import pingouin as pg
+from scipy import stats
+import numpy as np
+
+# ===== データ読み込み =====
+df = pd.read_csv("2025最後通牒結果.csv")
+
+# 前処理（空白削除）
+for c in ["氏名", "被験者の性別", "実験者の性別", "ボイスチェンジャー"]:
+    df[c] = df[c].astype(str).str.strip()
+
+# ラウンド名
+R1, R3 = "第１ラウンド", "第３ラウンド"
+
+# 変化量列を追加（R3 - R1）
+df["変化量"] = df[R3] - df[R1]
+
+# ===== 関数定義 =====
+def full_analysis(data, label):
+    print(f"\n========== {label} ==========")
+
+    # ANOVA
+    aov = pg.anova(dv="変化量", between="ボイスチェンジャー", data=data, detailed=True)
+
+    # t検定
+    t, p = stats.ttest_ind(
+        data[data["ボイスチェンジャー"] == "あり"]["変化量"],
+        data[data["ボイスチェンジャー"] == "なし"]["変化量"],
+        equal_var=False
+    )
+
+    # 効果量（Cohen's d）
+    d = pg.compute_effsize(
+        data[data["ボイスチェンジャー"] == "あり"]["変化量"],
+        data[data["ボイスチェンジャー"] == "なし"]["変化量"],
+        eftype="cohen"
+    )
+
+    mean_on = data[data["ボイスチェンジャー"] == "あり"]["変化量"].mean()
+    mean_off = data[data["ボイスチェンジャー"] == "なし"]["変化量"].mean()
+
+    print(aov[["Source", "F", "p-unc"]])
+    print(f"t = {t:.3f}, p = {p:.3f}, Cohen's d = {d:.2f}")
+    print(f"平均変化（あり vs なし）: {mean_on:+.2f} vs {mean_off:+.2f}")
+
+# ===== 条件ごとに実行 =====
+full_analysis(df, "全体")
+full_analysis(df[df["被験者の性別"] == "男性"], "男性被験者")
+full_analysis(df[df["被験者の性別"] == "女性"], "女性被験者")
+full_analysis(df[(df["被験者の性別"] == "男性") & (df["実験者の性別"] == "男性")], "男性×男性（同性）")
+full_analysis(df[(df["被験者の性別"] == "女性") & (df["実験者の性別"] == "女性")], "女性×女性（同性）")
+full_analysis(df[(df["被験者の性別"] == "男性") & (df["実験者の性別"] == "女性")], "男性×女性（異性）")
+full_analysis(df[(df["被験者の性別"] == "女性") & (df["実験者の性別"] == "男性")], "女性×男性（異性）")
