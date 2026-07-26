@@ -7,8 +7,8 @@ import statsmodels.api as sm
 # =========================
 # ① データ読み込み
 # =========================
-df_ult = pd.read_csv("R1_round.csv")
-df_body = pd.read_csv("2025身体化感覚アンケート.csv")
+df_ult = pd.read_csv("最後通牒結果/R1_round.csv")
+df_body = pd.read_csv("最後通牒結果/2025身体化感覚アンケート.csv")
 
 # =========================
 # ② 列名整理
