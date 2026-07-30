@@ -59,21 +59,21 @@ def analyze_d_by_pair(file, label, value_col):
 # ====================================
 # 🟦 R1
 # ====================================
-r1_df = analyze_d_by_pair("R1_round.csv", "R1: First Offer", "offer")
+r1_df = analyze_d_by_pair("最後通牒結果/R1_round.csv", "R1: First Offer", "offer")
 
 # ====================================
 # 🟩 R3
 # ====================================
-r3_df = analyze_d_by_pair("R3_round.csv", "R3: Second Offer", "offer")
+r3_df = analyze_d_by_pair("最後通牒結果/R3_round.csv", "R3: Second Offer", "offer")
 
 # ====================================
 # 🟥 R4
 # ====================================
-df4 = pd.read_csv("R4_round.csv")
+df4 = pd.read_csv("最後通牒結果/R4_round.csv")
 df4.columns = ["participant", "participant_gender", "experimenter_gender", "voice", "accept"]
 df4["accept"] = df4["accept"].replace({"受諾": 1, "拒否": 0})
-df4.to_csv("R4_round_numeric.csv", index=False)
-r4_df = analyze_d_by_pair("R4_round_numeric.csv", "R4: Acceptance Rate", "accept")
+df4.to_csv("最後通牒結果/R4_round_numeric.csv", index=False)
+r4_df = analyze_d_by_pair("最後通牒結果/R4_round_numeric.csv", "R4: Acceptance Rate", "accept")
 
 # ====================================
 # ✅ 全体まとめ

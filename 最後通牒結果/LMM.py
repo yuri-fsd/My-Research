@@ -11,7 +11,7 @@ plt.rcParams["font.family"] = "Hiragino Sans"
 # 発話データ
 # ==================================================
 
-speech_df = pd.read_csv("R1_round.csv")
+speech_df = pd.read_csv("最後通牒結果/R1_round.csv")
 
 speech_df = speech_df.rename(columns={
     "氏名": "name",

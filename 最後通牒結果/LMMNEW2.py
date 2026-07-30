@@ -11,7 +11,7 @@ plt.rcParams["font.family"] = "Hiragino Sans"
 # 1. 最後通牒ゲーム（提示額）データの読み込み
 # ==================================================
 # ※実際のファイル名（"R1_round.csv"等）に合わせて適宜変更してください
-speech_df = pd.read_csv("R1_round.csv")
+speech_df = pd.read_csv("最後通牒結果/R1_round.csv")
 
 speech_df = speech_df.rename(columns={
     "氏名": "name",

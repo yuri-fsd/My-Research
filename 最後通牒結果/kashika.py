@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 # =========================
 # データ読み込み
 # =========================
-df = pd.read_csv("R1_round.csv")
+df = pd.read_csv("最後通牒結果/R1_round.csv")
 
 # =========================
 # 前処理
