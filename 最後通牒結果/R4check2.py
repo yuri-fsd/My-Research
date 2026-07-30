@@ -1,6 +1,6 @@
 import pandas as pd
 
-df = pd.read_csv("2025最後通牒結果.csv")
+df = pd.read_csv("最後通牒結果/2025最後通牒結果.csv")
 
 # 男性実験者だけ
 df_male = df[df["実験者の性別"] == "男性"]

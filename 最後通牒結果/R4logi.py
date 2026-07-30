@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # ===== データ読み込み =====
-df = pd.read_csv("R4_round.csv")
+df = pd.read_csv("最後通牒結果/R4_round.csv")
 
 # ===== 前処理 =====
 df.columns = ["participant", "participant_gender", "experimenter_gender", "voice", "accept"]

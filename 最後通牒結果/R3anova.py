@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import ttest_ind
 
 # R3データの読み込み
-df = pd.read_csv("R3_round.csv")
+df = pd.read_csv("最後通牒結果/R3_round.csv")
 
 # 列名の統一z
 df.columns = ["participant", "participant_gender", "experimenter_gender", "voice", "offer"]
