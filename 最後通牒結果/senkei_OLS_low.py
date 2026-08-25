@@ -4,6 +4,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
+from scipy.stats import ttest_rel
+
 
 # ============================================================
 # フォント
@@ -73,7 +75,6 @@ df_ult["relation"] = np.where(
     "Different"
 )
 
-# interaction用
 # Same = 0
 # Different = 1
 df_ult["relation_num"] = np.where(
@@ -121,7 +122,7 @@ df_body_mean = (
 
 
 # ============================================================
-# ⑧ VCあり / なし を横持ちに変換
+# ⑧ VCあり / なしを横持ちに変換
 # ============================================================
 df_ult_wide = df_ult.pivot_table(
     index=[
@@ -136,7 +137,6 @@ df_ult_wide = df_ult.pivot_table(
 ).reset_index()
 
 
-# 列名変更
 df_ult_wide = df_ult_wide.rename(columns={
     "なし": "absent",
     "あり": "present"
@@ -161,9 +161,11 @@ df_plot = pd.merge(
     on="氏名"
 )
 
+
 print("\n========================================")
 print("全データ")
 print("========================================")
+
 print("Total N =", len(df_plot))
 
 
@@ -171,8 +173,8 @@ print("Total N =", len(df_plot))
 # ⑪ 男女すべての被験者から主体感中央値を計算
 # ============================================================
 
-# 同じ被験者がSame/Differentで複数行あるため、
-# 被験者1人につき1つの主体感だけ取り出して中央値を計算する
+# 同一被験者がSame/Differentの2行存在するので
+# 1人1行にしてから中央値を計算
 participant_agency = (
     df_plot[
         ["氏名", "被験者の性別", "agency"]
@@ -193,39 +195,41 @@ print(f"Agency Median = {agency_median:.3f}")
 
 
 # ============================================================
-# ⑫ 主体感が中央値より高い被験者だけ抽出
+# ⑫ 主体感が中央値より低い被験者だけ抽出
 # ============================================================
-high_agency_names = participant_agency.loc[
-    participant_agency["agency"] > agency_median,
+
+low_agency_names = participant_agency.loc[
+    participant_agency["agency"] < agency_median,
     "氏名"
 ]
 
 
-high_agency = df_plot[
-    df_plot["氏名"].isin(high_agency_names)
+low_agency = df_plot[
+    df_plot["氏名"].isin(low_agency_names)
 ].copy()
 
 
 print("\n========================================")
-print("高主体感群")
+print("低主体感群")
 print("========================================")
 
 print(
-    "高主体感被験者数 =",
-    high_agency["氏名"].nunique()
+    "低主体感被験者数 =",
+    low_agency["氏名"].nunique()
 )
 
 print(
-    "高主体感群データ数 =",
-    len(high_agency)
+    "低主体感群データ数 =",
+    len(low_agency)
 )
 
 
 # ============================================================
-# ⑬ 高主体感群に誰が入っているか確認
+# ⑬ 低主体感群に誰が入っているか確認
 # ============================================================
-high_participants = (
-    high_agency[
+
+low_participants = (
+    low_agency[
         ["氏名", "被験者の性別", "agency"]
     ]
     .drop_duplicates(subset="氏名")
@@ -234,22 +238,25 @@ high_participants = (
 
 
 print("\n========================================")
-print("高主体感群の被験者")
+print("低主体感群の被験者")
 print("========================================")
 
-print(high_participants.to_string(index=False))
+print(
+    low_participants.to_string(index=False)
+)
 
 
 # ============================================================
 # ⑭ Same / Different に分割
 # ============================================================
-same_df = high_agency[
-    high_agency["relation"] == "Same"
+
+same_df = low_agency[
+    low_agency["relation"] == "Same"
 ].copy()
 
 
-different_df = high_agency[
-    high_agency["relation"] == "Different"
+different_df = low_agency[
+    low_agency["relation"] == "Different"
 ].copy()
 
 
@@ -260,6 +267,7 @@ print("Different Gender N =", len(different_df))
 # ============================================================
 # ⑮ 単純傾き OLS
 # ============================================================
+
 def regression_stats(df, label):
 
     print("\n")
@@ -271,7 +279,10 @@ def regression_stats(df, label):
         print("Not enough data")
         return
 
-    X = sm.add_constant(df["agency"])
+    X = sm.add_constant(
+        df["agency"]
+    )
+
     y = df["diff"]
 
     model = sm.OLS(
@@ -279,70 +290,86 @@ def regression_stats(df, label):
         X
     ).fit()
 
-    print(f"N = {len(df)}")
-    print(f"Mean diff = {df['diff'].mean():.3f}")
 
     print(
-        f"β = {model.params['agency']:.4f}"
+        f"N = {len(df)}"
     )
 
     print(
-        f"p = {model.pvalues['agency']:.4f}"
+        f"Mean diff = "
+        f"{df['diff'].mean():.3f}"
     )
 
     print(
-        f"R² = {model.rsquared:.4f}"
+        f"β = "
+        f"{model.params['agency']:.4f}"
+    )
+
+    print(
+        f"p = "
+        f"{model.pvalues['agency']:.4f}"
+    )
+
+    print(
+        f"R² = "
+        f"{model.rsquared:.4f}"
     )
 
     print("\n--- OLS Summary ---")
-    print(model.summary())
+
+    print(
+        model.summary()
+    )
 
 
 # ============================================================
 # ⑯ Same Gender のOLS
 # ============================================================
+
 regression_stats(
     same_df,
-    "High Agency Group - Same Gender"
+    "Low Agency Group - Same Gender"
 )
 
 
 # ============================================================
 # ⑰ Different Gender のOLS
 # ============================================================
+
 regression_stats(
     different_df,
-    "High Agency Group - Different Gender"
+    "Low Agency Group - Different Gender"
 )
 
 
 # ============================================================
-# ⑱ 高主体感群で interaction OLS
+# ⑱ 低主体感群で interaction OLS
 #
 # diff ~ agency × relation
-#
-# Same = 0
-# Different = 1
 # ============================================================
+
 print("\n")
 print("=" * 70)
-print("High Agency Group Interaction")
+print("Low Agency Group Interaction")
 print("diff ~ agency * relation")
 print("=" * 70)
 
 
 interaction_model = smf.ols(
     "diff ~ agency * relation_num",
-    data=high_agency
+    data=low_agency
 ).fit()
 
 
-print(interaction_model.summary())
+print(
+    interaction_model.summary()
+)
 
 
 # ============================================================
 # ⑲ interactionの重要な値だけ表示
 # ============================================================
+
 interaction_term = "agency:relation_num"
 
 
@@ -350,15 +377,18 @@ print("\n========================================")
 print("交互作用")
 print("========================================")
 
+
 print(
     f"β = "
     f"{interaction_model.params[interaction_term]:.4f}"
 )
 
+
 print(
     f"p = "
     f"{interaction_model.pvalues[interaction_term]:.4f}"
 )
+
 
 print(
     f"R² = "
@@ -367,16 +397,15 @@ print(
 
 
 # ============================================================
-# ⑳ 高主体感群：OLS回帰プロット
+# ⑳ 低主体感群：OLS回帰プロット
 # ============================================================
+
 plt.figure(
     figsize=(8, 6)
 )
 
 
-# -------------------------
 # Same Gender
-# -------------------------
 sns.regplot(
     data=same_df,
     x="agency",
@@ -393,9 +422,7 @@ sns.regplot(
 )
 
 
-# -------------------------
 # Different Gender
-# -------------------------
 sns.regplot(
     data=different_df,
     x="agency",
@@ -412,7 +439,7 @@ sns.regplot(
 )
 
 
-# VCあり−なし = 0
+# VCあり − VCなし = 0
 plt.axhline(
     y=0,
     linestyle="--",
@@ -421,11 +448,11 @@ plt.axhline(
 )
 
 
-# 軸
 plt.xlabel(
     "Sense of Agency",
     fontsize=12
 )
+
 
 plt.ylabel(
     "Offer Difference (VC On − Off)",
@@ -433,9 +460,8 @@ plt.ylabel(
 )
 
 
-# タイトル
 plt.title(
-    "High Agency Group",
+    "Low Agency Group",
     fontsize=14
 )
 
@@ -452,7 +478,7 @@ plt.tight_layout()
 
 # 画像保存
 plt.savefig(
-    "高主体感群_OLS回帰.png",
+    "低主体感群_OLS回帰.png",
     dpi=300,
     bbox_inches="tight"
 )
@@ -460,63 +486,68 @@ plt.savefig(
 
 plt.show()
 
-# ============================================================
-# ㉑ 高主体感群：Excel箱ひげ図用データ作成
-# ============================================================
-
-# 男性被験者 × 男性実験者
-male_male = high_agency[
-    (high_agency["被験者の性別"] == "男性") &
-    (high_agency["relation"] == "Same")
-]
-
-# 男性被験者 × 女性実験者
-male_female = high_agency[
-    (high_agency["被験者の性別"] == "男性") &
-    (high_agency["relation"] == "Different")
-]
-
-# 女性被験者 × 女性実験者
-female_female = high_agency[
-    (high_agency["被験者の性別"] == "女性") &
-    (high_agency["relation"] == "Same")
-]
-
-# 女性被験者 × 男性実験者
-female_male = high_agency[
-    (high_agency["被験者の性別"] == "女性") &
-    (high_agency["relation"] == "Different")
-]
-
 
 # ============================================================
-# ㉒ 各条件のVCあり・なしを列にする
+# ㉑ 低主体感群：箱ひげ図用データ作成
+# ============================================================
+
+
+# 男性被験者 × 男性相手
+male_male = low_agency[
+    (low_agency["被験者の性別"] == "男性") &
+    (low_agency["relation"] == "Same")
+]
+
+
+# 男性被験者 × 女性相手
+male_female = low_agency[
+    (low_agency["被験者の性別"] == "男性") &
+    (low_agency["relation"] == "Different")
+]
+
+
+# 女性被験者 × 女性相手
+female_female = low_agency[
+    (low_agency["被験者の性別"] == "女性") &
+    (low_agency["relation"] == "Same")
+]
+
+
+# 女性被験者 × 男性相手
+female_male = low_agency[
+    (low_agency["被験者の性別"] == "女性") &
+    (low_agency["relation"] == "Different")
+]
+
+
+# ============================================================
+# ㉒ Excel箱ひげ図用8列
 # ============================================================
 
 boxplot_excel = pd.DataFrame({
 
-    # 男性被験者 → 男性相手
+    # 男性 → 男性
     "男性→男性 VCあり":
         male_male["present"].reset_index(drop=True),
 
     "男性→男性 VCなし":
         male_male["absent"].reset_index(drop=True),
 
-    # 男性被験者 → 女性相手
+    # 男性 → 女性
     "男性→女性 VCあり":
         male_female["present"].reset_index(drop=True),
 
     "男性→女性 VCなし":
         male_female["absent"].reset_index(drop=True),
 
-    # 女性被験者 → 女性相手
+    # 女性 → 女性
     "女性→女性 VCあり":
         female_female["present"].reset_index(drop=True),
 
     "女性→女性 VCなし":
         female_female["absent"].reset_index(drop=True),
 
-    # 女性被験者 → 男性相手
+    # 女性 → 男性
     "女性→男性 VCあり":
         female_male["present"].reset_index(drop=True),
 
@@ -525,15 +556,13 @@ boxplot_excel = pd.DataFrame({
 })
 
 
-# ============================================================
-# ㉓ 確認
-# ============================================================
-
 print("\n========================================")
-print("高主体感群：箱ひげ図用データ")
+print("低主体感群：箱ひげ図用データ")
 print("========================================")
 
-print(boxplot_excel)
+print(
+    boxplot_excel
+)
 
 
 print("\n各条件の人数")
@@ -560,11 +589,11 @@ print(
 
 
 # ============================================================
-# ㉔ CSV保存
+# ㉓ CSV保存
 # ============================================================
 
 boxplot_excel.to_csv(
-    "高主体感群_箱ひげ図用.csv",
+    "低主体感群_箱ひげ図用.csv",
     index=False,
     encoding="utf-8-sig"
 )
@@ -574,21 +603,18 @@ print("\n========================================")
 print("保存完了")
 print("========================================")
 
-print("高主体感群_箱ひげ図用.csv")
-
-from scipy.stats import ttest_rel
-import numpy as np
+print(
+    "低主体感群_箱ひげ図用.csv"
+)
 
 
 # ============================================================
-# 高主体感群
-# 箱ひげ図4条件に対応した「対応のある t 検定」
+# ㉔ 低主体感群
+# 箱ひげ図4条件に対応した対応のある t 検定
 # ============================================================
 
 def paired_t_test(df, label):
 
-    # 欠損値がある場合に備えて、
-    # VCあり・なしの両方が存在する行だけ使用
     data = df[
         ["present", "absent"]
     ].dropna()
@@ -596,108 +622,126 @@ def paired_t_test(df, label):
     present = data["present"]
     absent = data["absent"]
 
-    # =========================
-    # 対応のある t 検定
-    # =========================
+    # 対応のあるt検定
     t_stat, p_value = ttest_rel(
         present,
         absent
     )
 
-    # =========================
-    # 対応あり Cohen's dz
-    # =========================
-    difference = present - absent
+    # VCあり − VCなし
+    difference = (
+        present
+        - absent
+    )
 
+    # Cohen's dz
     if difference.std(ddof=1) != 0:
+
         cohen_dz = (
             difference.mean()
             / difference.std(ddof=1)
         )
+
     else:
+
         cohen_dz = np.nan
 
-    # =========================
-    # 結果表示
-    # =========================
+
     print("\n")
     print("=" * 70)
     print(label)
     print("=" * 70)
 
-    print(f"N = {len(data)}")
+
+    print(
+        f"N = {len(data)}"
+    )
+
 
     print(
         f"VCなし 平均 = "
         f"{absent.mean():.3f}"
     )
 
+
     print(
         f"VCあり 平均 = "
         f"{present.mean():.3f}"
     )
+
 
     print(
         f"平均差（VCあり − VCなし） = "
         f"{difference.mean():.3f}"
     )
 
+
     print(
         f"t({len(data)-1}) = "
         f"{t_stat:.3f}"
     )
+
 
     print(
         f"p = "
         f"{p_value:.4f}"
     )
 
+
     print(
         f"Cohen's dz = "
         f"{cohen_dz:.3f}"
     )
 
+
     if p_value < 0.05:
-        print("→ 有意差あり")
+
+        print(
+            "→ 有意差あり"
+        )
+
     else:
-        print("→ 有意差なし")
+
+        print(
+            "→ 有意差なし"
+        )
 
 
 # ============================================================
-# ① 男性被験者 × 男性相手
+# ㉕ 男性被験者 × 男性相手
 # ============================================================
 
 paired_t_test(
     male_male,
-    "男性被験者 × 男性相手"
+    "低主体感群：男性被験者 × 男性相手"
 )
 
 
 # ============================================================
-# ② 男性被験者 × 女性相手
+# ㉖ 男性被験者 × 女性相手
 # ============================================================
 
 paired_t_test(
     male_female,
-    "男性被験者 × 女性相手"
+    "低主体感群：男性被験者 × 女性相手"
 )
 
 
 # ============================================================
-# ③ 女性被験者 × 女性相手
+# ㉗ 女性被験者 × 女性相手
 # ============================================================
 
 paired_t_test(
     female_female,
-    "女性被験者 × 女性相手"
+    "低主体感群：女性被験者 × 女性相手"
 )
 
 
 # ============================================================
-# ④ 女性被験者 × 男性相手
+# ㉘ 女性被験者 × 男性相手
 # ============================================================
 
 paired_t_test(
     female_male,
-    "女性被験者 × 男性相手"
+    "低主体感群：女性被験者 × 男性相手"
 )
