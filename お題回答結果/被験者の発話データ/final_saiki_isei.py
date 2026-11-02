@@ -1,508 +1,117 @@
-# ============================================================
-# 仮想的に異性の場合
-# 所有感 × 自己開示スコアの線形回帰
-#
-# 所有感の中央値は取らない
-# 高所有感群 / 低所有感群には分けない
-# 全被験者をそのまま使用
-# 被験者の性別は分けずに合算
-#
-# 【赤プロット】
-#   VCなし
-#   男性被験者 → 女性相手
-#   女性被験者 → 男性相手
-#
-# 【青プロット】
-#   VCあり
-#   男性被験者 → 男性相手
-#   女性被験者 → 女性相手
-#
-# 横軸 = 所有感
-# 縦軸 = 自己開示スコア
-# ============================================================
-
 
 import pandas as pd
 import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
 import statsmodels.api as sm
+from statsmodels.formula.api import ols
+from scipy.stats import ttest_ind
 
-# ============================================================
-# ① データ読み込み
-# ============================================================
+# ===== データ読み込み =====
+df = pd.read_csv("./情報単位スコア一覧.csv")
 
-df_dis = pd.read_csv(
-    "お題回答結果/被験者の発話データ/情報単位スコア一覧.csv"
-)
+df = df.rename(columns={
+    "name": "participant",
+    "participant_gender": "p_gender",
+    "experimenter_gender": "e_gender",
+    "voice_changer": "voice",
+    "info_unit_score": "score"
+})
 
-df_body = pd.read_csv(
-    "お題回答結果/被験者の発話データ/2025身体化感覚アンケート.csv"
-)
+# ===== 表記統一 =====
+df["p_gender"] = df["p_gender"].replace({
+    "男性": "男", "女性": "女"
+})
 
+df["e_gender"] = df["e_gender"].replace({
+    "男": "男性", "女": "女性"
+})
 
-# ============================================================
-# ② 列名整理
-# ============================================================
+df["voice"] = df["voice"].replace({
+    "あり": "vc", "なし": "no_vc"
+})
 
-df_dis = df_dis.rename(
-    columns={
-        "name": "氏名"
-    }
-)
+df["score"] = pd.to_numeric(df["score"], errors="coerce")
 
-df_dis.columns = df_dis.columns.str.strip()
-df_body.columns = df_body.columns.str.strip()
+# ===== 地声条件のみ抽出 =====
+df = df[df["voice"] == "no_vc"].copy()
 
+# ===== 比較条件 =====
+conditions = {
+    "男性相手": df[df["e_gender"] == "男性"],
+    "女性相手": df[df["e_gender"] == "女性"]
+}
 
-# ============================================================
-# ③ 名前クリーニング
-# ============================================================
+# ===== 分析 =====
+for label, sub in conditions.items():
 
-def clean_name(df):
+    print("\n========================================")
+    print(f"条件：{label}（VCなし）")
+    print("========================================")
 
-    df["氏名"] = (
-        df["氏名"]
-        .astype(str)
-        .str.strip()
-        .str.replace(
-            "　",
-            "",
-            regex=False
-        )
-        .str.replace(
-            " ",
-            "",
-            regex=False
-        )
+    male = sub[sub["p_gender"] == "男"]["score"].dropna()
+    female = sub[sub["p_gender"] == "女"]["score"].dropna()
+
+    print("\n【平均・標準偏差】")
+    print(f"男性 N={len(male)}, 平均={male.mean():.3f}, SD={male.std():.3f}")
+    print(f"女性 N={len(female)}, 平均={female.mean():.3f}, SD={female.std():.3f}")
+
+    if len(male) < 2 or len(female) < 2:
+        print("データ不足のためスキップ")
+        continue
+
+    # --- ANOVA ---
+    model = ols("score ~ C(p_gender)", data=sub).fit()
+    anova_table = sm.stats.anova_lm(model, typ=2)
+
+    print("\n【ANOVA】")
+    print(anova_table)
+
+    # --- Welchのt検定 ---
+    t, p = ttest_ind(male, female, equal_var=False)
+
+    print("\n【t検定】")
+    print(f"t = {t:.3f}, p = {p:.4f}")
+
+    # --- Cohen's d（独立2群） ---
+    n1, n2 = len(male), len(female)
+
+    pooled_sd = np.sqrt(
+        ((n1 - 1) * male.var(ddof=1)
+         + (n2 - 1) * female.var(ddof=1))
+        / (n1 + n2 - 2)
     )
 
-    return df
+    d = (male.mean() - female.mean()) / pooled_sd if pooled_sd > 0 else np.nan
 
+    print("\n【Cohen's d】")
+    print(f"d = {d:.3f}")
 
-df_dis = clean_name(df_dis)
-df_body = clean_name(df_body)
+    if d > 0:
+        print("男性被験者の方が自己開示量が多い")
+    elif d < 0:
+        print("女性被験者の方が自己開示量が多い")
 
+# ===== Excel箱ひげ図用CSV =====
+box_data = {}
 
-# ============================================================
-# ④ 被験者の性別
-# ============================================================
+for e_gender in ["男性", "女性"]:
+    for p_gender in ["男", "女"]:
 
-female_names = [
-    "﨑谷瑠愛",
-    "小島夏美",
-    "谷川舞桜",
-    "久保田翔帆",
-    "小西真結",
-    "北野安樹子",
-    "渡邉怜",
-    "葭田桃花",
-    "利光唯",
-    "細見涼乃"
-]
+        values = df[
+            (df["e_gender"] == e_gender) &
+            (df["p_gender"] == p_gender)
+        ]["score"].dropna().reset_index(drop=True)
 
-
-df_dis["participant_gender"] = np.where(
-    df_dis["氏名"].isin(female_names),
-    "女性",
-    "男性"
-)
-
-
-# ============================================================
-# ⑤ 実験者性別を統一
-# ============================================================
-
-df_dis["experimenter_gender"] = (
-    df_dis["experimenter_gender"]
-    .replace({
-        "男": "男性",
-        "女": "女性"
-    })
-)
-
-
-# ============================================================
-# ⑥ VC表記を統一
-# ============================================================
-
-df_dis["VC"] = (
-    df_dis["voice_changer"]
-    .replace({
-        0: "VCなし",
-        1: "VCあり",
-        "なし": "VCなし",
-        "あり": "VCあり",
-        False: "VCなし",
-        True: "VCあり"
-    })
-)
-
-
-# ============================================================
-# ⑦ 所有感を計算
-#
-# 身体化感覚アンケートの最後12項目のうち
-# 最初の4項目を所有感として使用
-# ============================================================
-
-numeric_cols = df_body.columns[-12:]
-
-df_body["ownership"] = (
-    df_body[numeric_cols[:4]]
-    .mean(axis=1)
-)
-
-
-# ============================================================
-# ⑧ 各被験者の所有感
-#
-# 中央値は取らない
-# 高群 / 低群には分けない
-# 全被験者を使用
-# ============================================================
-
-ownership_all = (
-    df_body
-    .groupby("氏名")["ownership"]
-    .mean()
-    .reset_index()
-)
-
-
-print("\n========================================")
-print("全被験者の所有感")
-print("========================================")
-
-print(
-    ownership_all
-    .sort_values("ownership")
-    .to_string(index=False)
-)
-
-print(
-    f"\n全被験者数 = {len(ownership_all)}"
-)
-
-
-# ============================================================
-# ⑨ 赤プロットを抽出
-#
-# VCなし
-#
-# 男性被験者 → 女性相手
-# 女性被験者 → 男性相手
-#
-# 男女は分けずに合算
-# ============================================================
-
-red_df = df_dis[
-
-    (df_dis["VC"] == "VCなし")
-
-    &
-
-    (
-        # 男性 → 女性
-        (
-            (df_dis["participant_gender"] == "男性")
-            &
-            (df_dis["experimenter_gender"] == "女性")
+        label = (
+            f"{'男性' if p_gender == '男' else '女性'}被験者"
+            f"×{e_gender}相手"
         )
 
-        |
+        box_data[label] = values
 
-        # 女性 → 男性
-        (
-            (df_dis["participant_gender"] == "女性")
-            &
-            (df_dis["experimenter_gender"] == "男性")
-        )
-    )
+box_df = pd.DataFrame(box_data)
 
-].copy()
-
-
-# ============================================================
-# ⑩ 青プロットを抽出
-#
-# VCあり
-#
-# 男性被験者 → 男性相手
-# 女性被験者 → 女性相手
-#
-# 男女は分けずに合算
-# ============================================================
-
-blue_df = df_dis[
-
-    (df_dis["VC"] == "VCあり")
-
-    &
-
-    (
-        # 男性 → 男性
-        (
-            (df_dis["participant_gender"] == "男性")
-            &
-            (df_dis["experimenter_gender"] == "男性")
-        )
-
-        |
-
-        # 女性 → 女性
-        (
-            (df_dis["participant_gender"] == "女性")
-            &
-            (df_dis["experimenter_gender"] == "女性")
-        )
-    )
-
-].copy()
-
-
-# ============================================================
-# ⑪ 所有感を結合
-# ============================================================
-
-red_plot = pd.merge(
-    red_df,
-    ownership_all,
-    on="氏名",
-    how="inner"
+box_df.to_csv(
+    "自己開示_地声_箱ひげ図用.csv",
+    index=False,
+    encoding="utf-8-sig"
 )
-
-
-blue_plot = pd.merge(
-    blue_df,
-    ownership_all,
-    on="氏名",
-    how="inner"
-)
-
-
-# ============================================================
-# ⑫ 線形回帰に使用するデータを確認
-# ============================================================
-
-print("\n========================================")
-print("赤：VCなし 男性→女性 ＋ 女性→男性")
-print("========================================")
-
-print(
-    red_plot[
-        [
-            "氏名",
-            "participant_gender",
-            "experimenter_gender",
-            "ownership",
-            "info_unit_score"
-        ]
-    ]
-    .sort_values("ownership")
-    .to_string(index=False)
-)
-
-print(
-    f"\n赤 N = {len(red_plot)}"
-)
-
-
-print("\n========================================")
-print("青：VCあり 男性→男性 ＋ 女性→女性")
-print("========================================")
-
-print(
-    blue_plot[
-        [
-            "氏名",
-            "participant_gender",
-            "experimenter_gender",
-            "ownership",
-            "info_unit_score"
-        ]
-    ]
-    .sort_values("ownership")
-    .to_string(index=False)
-)
-
-print(
-    f"\n青 N = {len(blue_plot)}"
-)
-
-
-# ============================================================
-# ⑬ 線形回帰
-# ============================================================
-
-def regression_stats(df, label):
-
-    data = (
-        df[
-            [
-                "ownership",
-                "info_unit_score"
-            ]
-        ]
-        .dropna()
-    )
-
-    # 横軸：所有感
-    X = data["ownership"]
-
-    # 縦軸：自己開示スコア
-    y = data["info_unit_score"]
-
-    # 切片を追加
-    X = sm.add_constant(X)
-
-    # OLS線形回帰
-    model = sm.OLS(
-        y,
-        X
-    ).fit()
-
-
-    print(
-        f"\n--- {label} ---"
-    )
-
-    print(
-        f"N         : {len(data)}"
-    )
-
-    print(
-        f"切片      : "
-        f"{model.params['const']:.3f}"
-    )
-
-    print(
-        f"β (slope) : "
-        f"{model.params['ownership']:.3f}"
-    )
-
-    print(
-        f"p-value   : "
-        f"{model.pvalues['ownership']:.3f}"
-    )
-
-    print(
-        f"R²        : "
-        f"{model.rsquared:.3f}"
-    )
-
-    return model
-
-
-# ============================================================
-# ⑭ 回帰結果
-# ============================================================
-
-print("\n========================================")
-print("所有感 × 自己開示スコア")
-print("全被験者・中央値による分類なし")
-print("========================================")
-
-
-model_red = regression_stats(
-    red_plot,
-    "赤：VCなし 男性→女性 ＋ 女性→男性"
-)
-
-
-model_blue = regression_stats(
-    blue_plot,
-    "青：VCあり 男性→男性 ＋ 女性→女性"
-)
-
-
-# ============================================================
-# ⑮ グラフ
-# ============================================================
-
-plt.figure(
-    figsize=(8, 6)
-)
-
-
-# ------------------------------------------------------------
-# 赤
-#
-# VCなし
-# 男性 → 女性
-# 女性 → 男性
-# ------------------------------------------------------------
-
-sns.regplot(
-    data=red_plot,
-
-    x="ownership",
-
-    y="info_unit_score",
-
-    color="red",
-
-    label="Natural Voice: Different Gender",
-
-    scatter_kws={
-        "s": 80
-    },
-
-    line_kws={
-        "linewidth": 2
-    }
-)
-
-
-# ------------------------------------------------------------
-# 青
-#
-# VCあり
-# 男性 → 男性
-# 女性 → 女性
-# ------------------------------------------------------------
-
-sns.regplot(
-    data=blue_plot,
-
-    x="ownership",
-
-    y="info_unit_score",
-
-    color="blue",
-
-    label="VC: Virtual Different Gender",
-
-    scatter_kws={
-        "s": 80
-    },
-
-    line_kws={
-        "linewidth": 2
-    }
-)
-
-
-# ============================================================
-# ⑯ グラフ設定
-# ============================================================
-
-plt.xlabel(
-    "Ownership Score"
-)
-
-plt.ylabel(
-    "Self-Disclosure Score"
-)
-
-plt.title(
-    "Ownership vs. Self-Disclosure"
-)
-
-plt.legend()
-
-plt.grid(True)
-
-plt.tight_layout()
-
-plt.show()
