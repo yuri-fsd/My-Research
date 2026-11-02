@@ -28,7 +28,6 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
 
-
 # ============================================================
 # ① データ読み込み
 # ============================================================
