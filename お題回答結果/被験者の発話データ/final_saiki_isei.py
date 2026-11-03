@@ -91,19 +91,24 @@ for label, sub in conditions.items():
         print("女性被験者の方が自己開示量が多い")
 
 # ===== Excel箱ひげ図用CSV =====
+
 box_data = {}
 
 for e_gender in ["男性", "女性"]:
     for p_gender in ["男", "女"]:
 
-        values = df[
-            (df["e_gender"] == e_gender) &
-            (df["p_gender"] == p_gender)
-        ]["score"].dropna().reset_index(drop=True)
+        values = (
+            df[
+                (df["e_gender"] == e_gender) &
+                (df["p_gender"] == p_gender)
+            ]["score"]
+            .dropna()
+            .reset_index(drop=True)
+        )
 
         label = (
+            f"{e_gender}相手_"
             f"{'男性' if p_gender == '男' else '女性'}被験者"
-            f"×{e_gender}相手"
         )
 
         box_data[label] = values
@@ -115,3 +120,7 @@ box_df.to_csv(
     index=False,
     encoding="utf-8-sig"
 )
+
+print("\n【箱ひげ図用データ】")
+print(box_df)
+print("\nCSV出力完了")
